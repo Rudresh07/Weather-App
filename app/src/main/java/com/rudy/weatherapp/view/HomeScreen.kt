@@ -1,10 +1,6 @@
 package com.rudy.weatherapp.view
 
-import android.util.Log
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +10,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,33 +39,49 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.NavDestination
-import com.rudy.weatherapp.BuildConfig
 import com.rudy.weatherapp.R
+import com.rudy.weatherapp.Sharepreference.SharedPreferenceManager
 import com.rudy.weatherapp.ui.component.convertSecondsToFormattedDate
 import com.rudy.weatherapp.ui.theme.brownish
+import com.rudy.weatherapp.viewmodel.SavedCityViewModel
 import com.rudy.weatherapp.viewmodel.WeatherViewModel
 
 @Composable
 fun HomeScreen(navController: NavController) {
 
+    val saveViewModel: SavedCityViewModel = viewModel()
+
+    val context = LocalContext.current
+
+    val sharedPreferenceManager = remember {
+        SharedPreferenceManager(context = context)
+    }
+
     val viewModel:WeatherViewModel = viewModel()
     val weatherData by viewModel.weatherData.collectAsState()
-    var city by remember { mutableStateOf("Delhi") }
+
+    var city by remember {
+        mutableStateOf(sharedPreferenceManager.name ?: "Delhi")
+    }
+
+
+
+
     var searchQuery by remember { mutableStateOf("") }
     val apiKey ="38b8823eac3e7d21715a071e978790eb"
     val weatherCondition = weatherData?.weather?.firstOrNull()?.main ?: "Sunny"
     val isLoading by viewModel.loading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
 
 
     var backgroundRes by remember { mutableStateOf(R.drawable.sunny_background) }
@@ -75,12 +90,14 @@ fun HomeScreen(navController: NavController) {
     var currentDate = weatherData?.dt?.let { convertSecondsToFormattedDate(it) }
     val temprature = weatherData?.main?.temp
 
+
+
     // Fetch default weather data for a city when the screen loads
     LaunchedEffect(Unit) {
         viewModel.fetchWeather(city, apiKey) // Default city
     }
 
-    
+
 
 
     LaunchedEffect(weatherData?.weather) {
@@ -127,6 +144,7 @@ fun HomeScreen(navController: NavController) {
 
         else {
 
+
             Image(
                 painter = painterResource(id = backgroundRes),
                 contentDescription = null,
@@ -144,15 +162,11 @@ fun HomeScreen(navController: NavController) {
                             city = searchQuery
                             searchQuery = ""
                             viewModel.fetchWeather(city,apiKey)
+                            sharedPreferenceManager.name = city
                         }
                     }
                 )
-                Location(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    weatherData?.name ?: "Delhi"
-                )
+                LocationItem(modifier = Modifier.fillMaxWidth().padding(10.dp),city,{saveViewModel.addCity(city)})
                 // Show error if there's any issue fetching the data
                 if (errorMessage != null) {
                     ErrorMessage("City not found. Please try another city.")
@@ -168,17 +182,31 @@ fun HomeScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Spacer(modifier = Modifier.weight(1f)) // Push the text to the bottom
-                TextButton(
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    onClick = {
-                        // Navigate to the next screen, passing viewModel to it
-                        if (city.isNotBlank()) {
-                            navController.navigate("DetailScreen/$city")
-                        }
-                    }
-                ) {
-                    Text("See More >>")
-                }
+               Row {
+                   TextButton(
+                       onClick = {
+                           // Navigate to the next screen, passing viewModel to it
+                           if (city.isNotBlank()) {
+                               navController.navigate("DetailScreen/$city")
+                           }
+                       }
+                   ) {
+                       Text("See Detail >>")
+                   }
+
+                   TextButton(
+                       onClick = {
+                           // Navigate to the next screen, passing viewModel to it
+                               navController.navigate("SavedCityListScreen")
+
+                       }
+                   ) {
+                       Text("Saved data >>")
+                   }
+
+
+
+               }
 
 
             }
@@ -186,6 +214,46 @@ fun HomeScreen(navController: NavController) {
     }
 
 }
+
+@Composable
+fun LocationItem(
+    modifier: Modifier = Modifier,
+    locationName: String,
+    onFavoriteClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Location Symbol
+        Icon(
+            Icons.Filled.LocationOn, contentDescription = null
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Location Text
+        Text(
+            text = locationName,
+            fontSize = 20.sp,
+            color = Color.Black,
+            fontFamily = FontFamily.SansSerif
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Favorite Icon
+        IconButton(onClick = onFavoriteClick) {
+            Icon(
+                imageVector = Icons.Filled.Favorite,
+                contentDescription = "Favorite Icon"
+            )
+        }
+    }
+}
+
 
 @Composable
 fun LoadingIndicator() {
